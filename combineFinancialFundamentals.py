@@ -1,5 +1,34 @@
 import os
 import pandas as pd
+"""
+this is the second step of the project, which combine the financial fundamental data together and align them with correct date and ticker name
+
+Time Series in Fundamental Investment
+Time series analysis in fundamental investment is crucial for understanding how financial data evolves over time and how it can be integrated 
+into investment strategies. Unlike high-frequency data such as prices and volumes, which are available on a daily or even intraday basis, 
+fundamental financial data like earnings, cash flows, and balance sheet items are typically reported quarterly or annually. This creates a 
+temporal mismatch when integrating these datasets into a coherent investment model.
+
+Temporal Mismatch and Its Implications
+The infrequent nature of fundamental data reporting introduces challenges in time series alignment. For instance, while price and volume data 
+provide a continuous stream of information, fundamental data only updates at specific intervals. This can lead to gaps or misalignments when 
+combining these data types, potentially causing inaccurate or lagging signals in investment models.
+
+Addressing the Mismatch
+To address this issue, financial analysts often employ data imputation techniques, such as forward fill (ffill), to propagate the last known 
+value of a fundamental metric until new data becomes available. This approach ensures that the investment signals derived from fundamental data
+are only updated when new information is reported, which aligns with the actual release of financial statements. This method preserves the 
+integrity of the time series while also enhancing the explanatory power of the model by ensuring that changes in investment signals correspond
+to actual changes in a company’s financial health.
+
+Importance of Explanatory Power
+The explanatory power of a model refers to its ability to account for the variability in asset returns or other financial metrics. 
+In the context of fundamental investment, integrating time series data with robust explanatory power is essential for constructing reliable 
+investment strategies. By carefully aligning fundamental data with high-frequency market data, investors can better capture the underlying economic 
+realities that drive asset prices. This alignment allows for more accurate predictions and helps in identifying mispriced assets, ultimately 
+contributing to alpha generation in a portfolio.
+
+"""
 
 # Define the base directory
 base_dir = '/Users/zw/Desktop/FinanceReport/FinanceReport'
