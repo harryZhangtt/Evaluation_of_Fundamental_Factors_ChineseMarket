@@ -1,5 +1,11 @@
 import os
 import pandas as pd
+"""
+dataset in chinese A share market is fragmented, therefore combination and correct alignmnet 
+is vital for correct strategy construction and backtest
+this is the first step of the project, which combine necessary data of tradable shares,
+tradable amount, high, low, close, open prices as well as ticker name together
+"""
 
 # Define the base directories and subfolders
 base_dir_1 = '/Users/zw/Desktop/DataBase-1'
