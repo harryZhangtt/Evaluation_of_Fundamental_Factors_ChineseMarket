@@ -11,6 +11,35 @@ import matplotlib.dates as mdates
 from sklearn.linear_model import LinearRegression
 from statsmodels.robust.scale import mad
 from tqdm import tqdm
+"""
+this is the third part of the project which combine price&volume data with fundamental financials data
+one big challenge of the project is to address temporal mismatch in time series, which would be discussed in detailed.
+
+Time Series in Fundamental Investment
+Time series analysis in fundamental investment is crucial for understanding how financial data evolves over time and how it can be integrated 
+into investment strategies. Unlike high-frequency data such as prices and volumes, which are available on a daily or even intraday basis, 
+fundamental financial data like earnings, cash flows, and balance sheet items are typically reported quarterly or annually. This creates a 
+temporal mismatch when integrating these datasets into a coherent investment model.
+
+Temporal Mismatch and Its Implications
+The infrequent nature of fundamental data reporting introduces challenges in time series alignment. For instance, while price and volume data 
+provide a continuous stream of information, fundamental data only updates at specific intervals. This can lead to gaps or misalignments when 
+combining these data types, potentially causing inaccurate or lagging signals in investment models.
+
+Addressing the Mismatch
+To address this issue, financial analysts often employ data imputation techniques, such as forward fill (ffill), to propagate the last known 
+value of a fundamental metric until new data becomes available. This approach ensures that the investment signals derived from fundamental data
+are only updated when new information is reported, which aligns with the actual release of financial statements. This method preserves the 
+integrity of the time series while also enhancing the explanatory power of the model by ensuring that changes in investment signals correspond
+to actual changes in a company’s financial health.
+
+Importance of Explanatory Power
+The explanatory power of a model refers to its ability to account for the variability in asset returns or other financial metrics. 
+In the context of fundamental investment, integrating time series data with robust explanatory power is essential for constructing reliable 
+investment strategies. By carefully aligning fundamental data with high-frequency market data, investors can better capture the underlying economic 
+realities that drive asset prices. This alignment allows for more accurate predictions and helps in identifying mispriced assets, ultimately 
+contributing to alpha generation in a portfolio.
+"""
 
 class StockPitcher:
     def __init__(self, qp_folder_path, financial_data_folder, output_path,industry_file_path):
@@ -69,28 +98,6 @@ class StockPitcher:
 
         return qp_merged_df
 
-    # def merge_data(self, qp_merged_df, merged_financial_df):
-    #     final_df = qp_merged_df.copy()
-    #     unique_dates = final_df['Date'].unique()
-    #
-    #     for unique_date in unique_dates:
-    #         print(unique_date)
-    #         qp_rows = final_df[final_df['Date'] == unique_date]
-    #         financial_rows = merged_financial_df[merged_financial_df['Date'] == unique_date]
-    #
-    #         if not financial_rows.empty:
-    #             for index, qp_row in qp_rows.iterrows():
-    #                 secu_code = qp_row['SECU_CODE']
-    #                 matching_financial_rows = financial_rows[financial_rows['SECU_CODE'] == secu_code]
-    #                 if not matching_financial_rows.empty:
-    #                     for col in matching_financial_rows.columns:
-    #                         if col not in final_df.columns:
-    #                             final_df[col] = None
-    #                         final_df.loc[index, col] = matching_financial_rows[col].values[0]
-    #     ##only filter stocks that are on trade
-    #     final_df= final_df[final_df['sk_2']==1]
-    #     # Filter and print the row with Date=2003-04-16 and SECU_CODE=600624
-    #     return final_df
 
     def merge_data(self, qp_merged_df, merged_financial_df):
         final_df = qp_merged_df.copy()
@@ -131,7 +138,9 @@ class StockPitcher:
         print(final_df.columns)
 
         return final_df
-
+"""
+forward filling handles the temporal mismatch in time series
+"""
 
     def forward_fill_columns(self, df):
         columns_to_ffill = [
@@ -161,7 +170,10 @@ class StockPitcher:
     def save_to_csv(self, df):
         df.to_csv(self.output_path, index=False)
         print("Data saved to", self.output_path)
-
+        
+"""
+calculate 24 fundamental factors in 7 section
+"""
     def calculate_value_factor(self):
         df=self.data.copy()
         df.sort_values(by=['Date','SECU_CODE'])
@@ -232,9 +244,6 @@ class StockPitcher:
         df['TurnoverRatio'] = np.where(df['MvLiqFree_1'] != 0, df['Volume_1'] / df['MvLiqFree_1'], 0)
         df['TO_1M'] = df.groupby('SECU_CODE')['TurnoverRatio'].rolling(window=30, min_periods=1).mean().reset_index(
             level=0, drop=True)
-
-
-
         # Calculate ILLIQ
         df['ILLIQ'] = df['DailyReturn'].abs() / df['Volume_1']
 
@@ -265,7 +274,9 @@ class StockPitcher:
         mean = series.mean()
         std = series.std()
         return (series - mean) / std if std != 0 else series
-
+"""
+size neutralization
+"""
     def _calculate_residuals(self, group, vector_column, response_column):
         X = pd.to_numeric(group[vector_column], errors='coerce').values.reshape(-1, 1)
         y = pd.to_numeric(group[response_column], errors='coerce').values.reshape(-1, 1)
@@ -285,7 +296,9 @@ class StockPitcher:
         alpha = pd.Series(np.nan, index=group.index)
         alpha.iloc[valid_indices] = residuals.flatten()
         return alpha
-
+"""
+perform industry, size neutralization as well as normalization to individual fundamental factors
+"""
     def raw_alpha_processing(self, df, value_factor):
         df['Market_Cap'] = pd.to_numeric(df['MvTotal_1'], errors='coerce').fillna(0).replace([np.inf, -np.inf], 0)
         df['log_size'] = np.log(df['Market_Cap'].replace(0, np.nan))  # Replace 0 with NaN to avoid log(0)
@@ -329,7 +342,10 @@ class StockPitcher:
 
         gc.collect()
         return result_df
-
+"""
+determine trading logic of individual fundamental factors based on IC(information coefficient), positive IC suggest positive corr between factor values 
+and future returns while negative corr suggest negative corr
+"""
     def evaluate_factor_IC(self):
         df = self.data.copy()
         price_df= df[['Date','SECU_CODE','ADJ_CLOSE_PRICE','industry','MvTotal_1']].copy()
@@ -370,7 +386,10 @@ class StockPitcher:
 
             print(f'{value_factor} IC: {factor_ics[value_factor]}')
         self.data = df
-
+        
+"""
+24 factors are combined to get more comprehensive signal(even weighted and IC weighted) 
+"""
     def factor_combination(self):
         """ currently, the even distribution has the best performance, while ic weighted does not"""
         df = self.data.copy()
@@ -423,13 +442,11 @@ class StockPitcher:
 
     def weight_assignment(self, df, positive_filter=True):
         df = df.sort_values(by='Date')
-
+        """
+        add random noise to avoid same ranking
+        """
         def add_noise(series):
             return series + np.random.normal(0, 1e-6, len(series))
-
-
-        """
-        make sure in top 10 are all positive and bottom 10 are all negative"""
 
         def quantile_transform(group):
             group = group.dropna(subset=['vector'])  # Drop NaNs
@@ -444,7 +461,10 @@ class StockPitcher:
 
         df['long_weight'] = 0.0
         df['short_weight'] = 0.0
-
+"""
+construct the portfolio using top 10 percent against bottom 10 percent, which is which depends on the sign of IC
+if IC is positive then the top is the highest 10 percent and bottom be lowest 10 percent, if nagative the other way around
+"""
         if positive_filter:
             top_10_mask = df['quantile'] == 9
             bottom_10_mask = df['quantile'] == 0
@@ -472,6 +492,9 @@ class StockPitcher:
         df = df.copy()
         df['factor_exposure'] = df[factor_name].astype(float)
         return df
+    """
+    calculate the stability coefficient as a measure of risk
+    """
 
     def calculate_factor_stability_coefficient(self,df):
         # Ensure the data is sorted by Date and SECU_CODE
@@ -528,6 +551,9 @@ class StockPitcher:
                 'factor_stability_coefficient']
 
         return df
+    """
+    backtest the performance of fundamental factors
+    """
 
     def construct_and_backtest_alpha(self):
         df = self.data.copy()
@@ -897,10 +923,7 @@ class StockPitcher:
         self.calculate_liquidity_other_factor()
         self.evaluate_factor_IC()
         self.factor_combination()
-        # output_filename = 'overall_alpha.csv'
-        # output_dir = os.path.join(output_path, output_filename)
-        # self.data.to_csv(output_dir, index=False)
-        # self.construct_and_backtest_alpha()
+        self.construct_and_backtest_alpha()
 
 
 
