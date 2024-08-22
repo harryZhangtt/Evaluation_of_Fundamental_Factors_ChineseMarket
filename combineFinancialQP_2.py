@@ -9,6 +9,35 @@ from matplotlib import pyplot as plt
 from datetime import datetime
 import matplotlib.dates as mdates
 from sklearn.linear_model import LinearRegression
+"""
+this is the third part of the project which combine price&volume data with fundamental financials data
+one big challenge of the project is to address temporal mismatch in time series, which would be discussed in detailed.
+
+Time Series in Fundamental Investment
+Time series analysis in fundamental investment is crucial for understanding how financial data evolves over time and how it can be integrated 
+into investment strategies. Unlike high-frequency data such as prices and volumes, which are available on a daily or even intraday basis, 
+fundamental financial data like earnings, cash flows, and balance sheet items are typically reported quarterly or annually. This creates a 
+temporal mismatch when integrating these datasets into a coherent investment model.
+
+Temporal Mismatch and Its Implications
+The infrequent nature of fundamental data reporting introduces challenges in time series alignment. For instance, while price and volume data 
+provide a continuous stream of information, fundamental data only updates at specific intervals. This can lead to gaps or misalignments when 
+combining these data types, potentially causing inaccurate or lagging signals in investment models.
+
+Addressing the Mismatch
+To address this issue, financial analysts often employ data imputation techniques, such as forward fill (ffill), to propagate the last known 
+value of a fundamental metric until new data becomes available. This approach ensures that the investment signals derived from fundamental data
+are only updated when new information is reported, which aligns with the actual release of financial statements. This method preserves the 
+integrity of the time series while also enhancing the explanatory power of the model by ensuring that changes in investment signals correspond
+to actual changes in a company’s financial health.
+
+Importance of Explanatory Power
+The explanatory power of a model refers to its ability to account for the variability in asset returns or other financial metrics. 
+In the context of fundamental investment, integrating time series data with robust explanatory power is essential for constructing reliable 
+investment strategies. By carefully aligning fundamental data with high-frequency market data, investors can better capture the underlying economic 
+realities that drive asset prices. This alignment allows for more accurate predictions and helps in identifying mispriced assets, ultimately 
+contributing to alpha generation in a portfolio.
+"""
 
 class StockPitcher:
     def __init__(self, qp_folder_path, financial_data_folder, output_path):
@@ -81,11 +110,13 @@ class StockPitcher:
                             if col not in final_df.columns:
                                 final_df[col] = None
                             final_df.loc[index, col] = matching_financial_rows[col].values[0]
-        ##only filter stocks that are on trade
+        ##only filter stocks that are on_trade
         final_df= final_df[final_df['sk_2']==1]
-        # Filter and print the row with Date=2003-04-16 and SECU_CODE=600624
         return final_df
-
+        
+"""
+this part aims to address the temporal mismatch in time series by filling nan data by forward filling
+"""
     def forward_fill_columns(self, df):
         columns_to_ffill = [
             'NetProfitTtm', 'NetProfit', 'OperRevTtm', 'OperRev', 'NetCashOperTtm',
@@ -112,7 +143,9 @@ class StockPitcher:
     def save_to_csv(self, df):
         df.to_csv(self.output_path, index=False)
         print("Data saved to", self.output_path)
-
+"""
+starting here is the calculation of 24 fundamental factors classified into 7 sections
+"""
     def calculate_value_factor(self):
         df=self.data.copy()
         df.sort_values(by=['Date','SECU_CODE'])
@@ -128,8 +161,6 @@ class StockPitcher:
         self.data= df
         self.value_factors=['BP_LF','EP_TTM','SP_TTM','CFP_TTM','EBIT2EV','SALES2EV']
         BP_LF= df[['Date','SECU_CODE','BP_LF','EP_TTM','SP_TTM','CFP_TTM','EBIT2EV','SALES2EV']].copy()
-
-        BP_LF.to_csv('/Users/zw/Desktop/BP_LF.csv')
 
     def calculate_profit_factor(self):
         df= self.data.copy()
@@ -183,9 +214,6 @@ class StockPitcher:
         df['TurnoverRatio'] = np.where(df['MvLiqFree_1'] != 0, df['Volume_1'] / df['MvLiqFree_1'], 0)
         df['TO_1M'] = df.groupby('SECU_CODE')['TurnoverRatio'].rolling(window=30, min_periods=1).mean().reset_index(
             level=0, drop=True)
-
-
-
         # Calculate ILLIQ
         df['ILLIQ'] = df['DailyReturn'].abs() / df['Volume_1']
 
@@ -212,8 +240,10 @@ class StockPitcher:
         self.liquidity_and_other_factors = ['TO_1M', 'ILLIQ_fixed', 'AmountAvg_1M_3M', 'RealizedVol_3M', 'Max_Ret']
         self.data = df
 
-
-
+"""
+to determine the trading logic, the IC(information ratio) of fundamental factors are calculated. Then if the IC is positive, we assume positive 
+correlation between signal and future returns, and if negative the other way around.
+"""
     def evaluate_factor_IC(self):
         df = self.data.copy()
         df.sort_values(by=['Date', 'SECU_CODE'], inplace=True)
@@ -249,7 +279,10 @@ class StockPitcher:
 
             print(f'{value_factor} IC: {factor_ics[value_factor]}')
         self.data=df
-
+"""
+to come up with more comprehensive signal, 24 fundamental factors are combined using even weight and IC weighted methods
+here, the 
+"""
     def factor_combination(self):
         """ currently, the even distribution has the best performance, while ic weighted does not"""
         df = self.data.copy()
